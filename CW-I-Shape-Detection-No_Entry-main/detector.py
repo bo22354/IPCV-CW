@@ -16,9 +16,7 @@ def detectAndDisplay(frame):
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     frame_gray = cv2.equalizeHist(frame_gray)
     # 2. Perform Viola-Jones Object Detection
-    faces = model.detectMultiScale(frame_gray, scaleFactor=1.2, minNeighbors=3, flags=0, minSize=(20,20), maxSize=(300,300))
-    # 3. Print number of Faces found
-    print(len(faces))
+    faces = model.detectMultiScale(frame_gray, scaleFactor=1.1, minNeighbors=2, flags=0, minSize=(20,20), maxSize=(300,300))
     # 4. Draw box around faces found
     foundBoxes = []
     for i in range(0, len(faces)):
@@ -138,7 +136,37 @@ realBoxes = readGroundtruth( fileName[0], frame )
 truePos = 0
 for foundBox in foundBoxes:
     truePos = iou(foundBox, realBoxes) + truePos
-    print("FoundBox: " , ' ' , foundBox , ' ' , "True Positives: " , ' ' , truePos , '\n\n')
+    # print("FoundBox: " , ' ' , foundBox , ' ' , "True Positives: " , ' ' , truePos , '\n\n')
+
+
+falsePos = len(foundBoxes) - truePos 
+falseNeg = len(realBoxes) - truePos
+
+if truePos + falsePos > 0:
+    precision = truePos / (truePos + falsePos) #Normal situation with some detection
+else:
+    precision = 0 #No detections
+
+if truePos + falseNeg > 0:
+    recall = truePos / (truePos + falseNeg)
+else:
+    recall = 0 #Nothing to detect
+
+if precision + recall > 0:
+    f1Score = 2 * ((precision*recall) / (precision+recall))
+else:
+    f1Score = 0 #Nothing to be detected and it didn't detect anything
+
+if len(realBoxes) > 0:
+    truePosRate = truePos / len(realBoxes)
+else:
+    truePosRate = 0 #Nothing to detect
+
+
+# print("Precision ", precision)
+# print("Recall: ", recall)
+print("True Positive Rate: ", truePosRate)
+print("F1-Score: ", f1Score)
 
 
 # 4. Save Result Image
