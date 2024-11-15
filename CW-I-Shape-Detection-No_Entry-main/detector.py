@@ -39,6 +39,8 @@ def detectAndDisplay(frame):
 def readGroundtruth(imageName, frame):
     filename='groundtruth.txt'
     # read bounding boxes as ground truth
+    realBoxes = []
+
     with open(filename) as f:
         # read each line in text file
         for line in f.readlines():
@@ -49,16 +51,51 @@ def readGroundtruth(imageName, frame):
             width = int(float(content_list[3]))
             height = int(float(content_list[4]))
             # print(img_name +' '+str(x)+' '+str(y)+' '+str(width)+' '+str(height))
-            realBoxes = []
             if(img_name == imageName):
                 start_point = (x, y)
-                end_point = (x+height, y+width)
+                end_point = (x+width, y+height)
                 colour = (0,0,255)
                 thickness = 2
                 frame = cv2.rectangle(frame, start_point, end_point, colour, thickness)
                 realBoxes.append([start_point, end_point])
 
     return realBoxes
+
+
+
+
+def iou(foundBoxes, realBoxes):
+    xStartF, yStartF = foundBoxes[0]
+    xEndF, yEndF = foundBoxes[1]
+    for realBox in realBoxes:
+        xStartR, yStartR = realBox[0]
+        xEndR, yEndR = realBox[1]
+
+        xLeft = max(xStartF, xStartR)
+        xRight = min(xEndF, xEndR)
+        yTop = max(yStartF, yStartR)
+        yBottom = min(yEndF, yEndR)
+
+        if xLeft < xRight or yTop < yBottom:
+            intersect = (xRight - xLeft) * (yBottom - yTop)
+            foundArea = (xEndF - xStartF) * (yEndF - yEndR)
+            realArea = (xEndR - xStartR) * (yEndR - yStartR)
+            union = foundArea + realArea - intersect
+
+            iou = intersect / union
+            if(iou > 0.5):
+                return 1 #sufficient overlap
+    
+    return 0 #No overlap
+        
+        
+                
+
+
+
+
+
+
 
 
 
@@ -97,8 +134,11 @@ if not model.load(cascade_name): # if got error, you might need `if not model.lo
 
 # 3. Detect Faces and Display Result
 foundBoxes = detectAndDisplay( frame )
-print(foundBoxes)
-#realBoxes = readGroundtruth( fileName[0], frame )
+realBoxes = readGroundtruth( fileName[0], frame )
+truePos = 0
+for foundBox in foundBoxes:
+    truePos = iou(foundBox, realBoxes) + truePos
+    print("FoundBox: " , ' ' , foundBox , ' ' , "True Positives: " , ' ' , truePos , '\n\n')
 
 
 # 4. Save Result Image
