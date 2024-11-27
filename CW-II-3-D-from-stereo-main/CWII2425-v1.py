@@ -223,7 +223,6 @@ if __name__ == '__main__':
     ox=img_width/2-0.5 
     oy=img_height/2-0.5
     K = o3d.camera.PinholeCameraIntrinsic(img_width,img_height,f,f,ox,oy)
-
     # Rendering RGB-D frames given camera poses
     render = o3d.visualization.rendering.OffscreenRenderer(640, 480)
     for m, rgb, name in zip(obj_meshes, RGB_list, name_list):

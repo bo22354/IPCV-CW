@@ -263,7 +263,42 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+    
+    img0 = cv2.imread('view0.png', 1)
+    img_gray0 = cv2.cvtColor(img0,cv2.COLOR_BGR2GRAY)
+    blur0 = cv2.medianBlur(img_gray0, 5)
+    # circles = cv2.HoughCircles(blur,cv2.HOUGH_GRADIENT,1,20, param1=50, param2=35, minRadius=0, maxRadius=(3*args.sph_rad_max))
+    circles0 = cv2.HoughCircles(blur0,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=35, minRadius=0, maxRadius=0)
+    circles0 = np.uint16(np.around(circles0))
+    print(circles0)
+    # Draw the circles
+    for i in circles0[0,:]:
+        cv2.circle(img0,(i[0],i[1]),i[2],(0,255,0),2) # draw the outer circle
+        cv2.circle(img0,(i[0],i[1]),2,(0,0,255),3) # draw the center of the circle
+    cv2.imwrite('circles0.png', img0)
 
+
+
+    img1 = cv2.imread('view1.png', 1)
+    img_gray1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
+    blur1 = cv2.medianBlur(img_gray1, 5)
+    # circles = cv2.HoughCircles(blur,cv2.HOUGH_GRADIENT,1,20, param1=50, param2=35, minRadius=0, maxRadius=(3*args.sph_rad_max))
+    circles1 = cv2.HoughCircles(blur1,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=45, minRadius=0, maxRadius=0)
+
+    
+    circles1 = np.uint16(np.around(circles1))
+
+    # Draw the circles
+    for i in circles1[0,:]:
+        cv2.circle(img1,(i[0],i[1]),i[2],(0,255,0),2) # draw the outer circle
+        cv2.circle(img1,(i[0],i[1]),2,(0,0,255),3) # draw the center of the circle
+    cv2.imwrite('circles1.png', img1)
+    
+
+
+
+
+    
 
     ###################################
     '''
@@ -275,6 +310,183 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+    def find_line_intersections(a, b, c, w, h):
+        points = []
+
+        # Top boundary (y = 0)
+        if b != 0:  # Avoid division by zero
+            x1 = int(-c / a) if a != 0 else None
+            if x1 is not None and 0 <= x1 < w:
+                points.append((x1, 0))  # Crosses the top boundary
+
+        # Right boundary (x = w)
+        if a != 0:  # Avoid division by zero
+            y1 = int(-(c + a * w) / b) if b != 0 else None
+            if y1 is not None and 0 <= y1 < h:
+                points.append((w, y1))  # Crosses the right boundary
+
+        # Bottom boundary (y = h)
+        if b != 0:  # Avoid division by zero
+            x2 = int(-(c + b * h) / a) if a != 0 else None
+            if x2 is not None and 0 <= x2 < w:
+                points.append((x2, h))  # Crosses the bottom boundary
+
+        # Left boundary (x = 0)
+        if a != 0:  # Avoid division by zero
+            y2 = int(-c / b) if b != 0 else None
+            if y2 is not None and 0 <= y2 < h:
+                points.append((0, y2))  # Crosses the left boundary
+
+        return points
+
+
+
+
+    def compute_points(a, b, c, w, h):
+        points = []
+        # ax + by + c = 0
+        if b != 0:
+            #where y = 0, x = -c / a
+            x1 = int(-c / a)
+            if x1 <= w: #crosses on top at y = 0
+                print("Crosses top border")
+                points.append((x1, 0))
+            else: #crosses on right before y = 0
+                y1 = int(-(c + a*w) / b)
+                points.append(w, y1)
+
+            #where y = max, x = -(c + b*y) / b
+            x0 = int(-(c+b*h)/a)
+            if 0 <= x0:
+                points.append((x0, h))
+            else:
+                y0 = int(-c/b)
+        else:
+            x0 = 0
+            x1 = w
+            y0 = -c /b
+            y1 = -(c + a*w) / b
+       
+        
+
+                
+        
+        # Intersection with right edge (x = w-1)
+        if b != 0:
+            y = int(-(a * (w-1) + c) / b)
+            if 0 <= y < h:
+                print("Crosses right border")
+                points.append((w-1, y))
+        
+        # Intersection with top edge (y = 0)
+        if a != 0:
+            x = int(-c / a)
+            if 0 <= x < w:
+                print("Crosses top border")
+                points.append((x, 0))
+        
+        # Intersection with bottom edge (y = h-1)
+        if a != 0:
+            x = int(-(b * (h-1) + c) / a)
+            if 0 <= x < w:
+                print("Crosses bottom border")
+
+                points.append((x, h-1))
+        
+        # If no valid points, return None
+        if not points:
+            return None, None
+        
+        print("points: ", points)
+        # Sort points along the line by x, then by y
+        points = sorted(points, key=lambda p: (p[0], p[1]))
+        
+        # First and last points
+        first_point = points[0]
+        last_point = points[-1]
+        
+        return first_point, last_point
+
+
+
+
+    print("Circles0 Centres", circles0)
+    # H0_wc = World to cam 0
+    # H1_wc = World to cam 1
+    T0 = H0_wc[:3, 3]
+    T1 = H1_wc[:3, 3]
+
+    R0 = H0_wc[:3, :3]
+    R1 = H1_wc[:3, :3]
+
+    R = np.dot(R1,R0.T)
+    T = T1 - np.dot(R, T0) 
+    S = np.array([[0, -T[2], T[1]],
+                [T[2],0 ,-T[0]],
+                [-T[1], T[0], 0]])
+    
+
+    E = np.dot(S, R)
+    M = K.intrinsic_matrix
+    print(M)
+    MInv = np.linalg.inv(M)
+    # F1 = M.T @ E1 @ M
+    F2 = MInv.T @ E @ MInv
+    
+
+
+############################################################
+
+
+
+
+
+
+##########################################################
+
+    lines = []
+    centres = []
+    for i in circles1[0,:]:
+        circlePos = np.array([i[0], i[1], 1])
+        centres.append([i[0], i[1]])
+        line = F2 @ circlePos
+        lines.append(line)
+        a,b,c = line
+
+
+        # intersections = find_line_intersections(a,b,c, img_width, img_height)
+        # # # intersections = compute_points(a,b,c, img_width, img_height)
+        # print(f"Line: {a, b, c}, Intersections: {intersections}")
+        # if len(intersections) >= 2:
+        #     cv2.line(img1, intersections[0], intersections[1], (0, 255, 0), 2)
+
+    centres_np = np.array(centres, dtype=np.float32).reshape(-1, 1, 2)
+
+    # Compute epipolar lines in image 2 for points from image 1
+    epilines_img2 = cv2.computeCorrespondEpilines(centres_np, 1, F2)
+
+    # epilines_img2 = cv2.computeCorrespondEpilines(lines.reshape(-1, 1, 2), 1, F2)
+    # intersections = find_line_intersections(a,b,c, img_width, img_height)
+    epilines_img2 = epilines_img2.reshape(-1, 3)
+    print("Epipolar lines in image 2:", epilines_img2)
+    for line in epilines_img2:
+        a,b,c = line
+        intersections = find_line_intersections(a,b,c, img_width, img_height)
+        print(f"Line: {a, b, c}, Intersections: {intersections}")
+        if len(intersections) >= 2:
+            cv2.line(img1, intersections[0], intersections[1], (0, 255, 0), 2)
+
+
+
+    cv2.imshow("Epipolar Line", img1)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+
+
+
+
 
 
     ###################################
