@@ -263,7 +263,14 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+    def getColour(index):
+    # Calculate RGB values by cycling through the channels
+        r = int((index * 30) % 256)  # Red channel (cycling every 256 colors)
+        g = int((index * 60) % 256)  # Green channel (cycling every 256 colors)
+        b = int((index * 90) % 256)  # Blue channel (cycling every 256 colors)
+        return (b, g, r)  # OpenCV uses BGR, not RGB, so we return (B, G, R)
     
+
     img0 = cv2.imread('view0.png', 1)
     img1 = cv2.imread('view1.png', 1)
     img_gray0 = cv2.cvtColor(img0,cv2.COLOR_BGR2GRAY)
@@ -273,8 +280,8 @@ if __name__ == '__main__':
 
 
 
-    # circles = cv2.HoughCircles(blur,cv2.HOUGH_GRADIENT,1,20, param1=50, param2=35, minRadius=0, maxRadius=(3*args.sph_rad_max))
-    circles0 = cv2.HoughCircles(blur0,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=35, minRadius=0, maxRadius=0)
+    circles0 = cv2.HoughCircles(blur0,cv2.HOUGH_GRADIENT,1.5,15, param1=100, param2=35, minRadius=10, maxRadius=45)
+    # circles0 = cv2.HoughCircles(blur0,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=35, minRadius=0, maxRadius=0)
     circles0 = np.uint16(np.around(circles0))
 
     for i in circles0[0,:]:
@@ -284,14 +291,21 @@ if __name__ == '__main__':
 
 
 
-    # circles = cv2.HoughCircles(blur,cv2.HOUGH_GRADIENT,1,20, param1=50, param2=35, minRadius=0, maxRadius=(3*args.sph_rad_max))
-    circles1 = cv2.HoughCircles(blur1,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=45, minRadius=0, maxRadius=0)
+    circles1 = cv2.HoughCircles(blur1,cv2.HOUGH_GRADIENT,1.5,15, param1=100, param2=35, minRadius=10, maxRadius=45)
+    # circles1 = cv2.HoughCircles(blur1,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=45, minRadius=0, maxRadius=0)
     circles1 = np.uint16(np.around(circles1))
 
+    index = 1
+    colours = []
     for i in circles1[0,:]:
-        cv2.circle(img1,(i[0],i[1]),i[2],(0,255,0),2) # draw the circle
+        colour = getColour(index)
+        colours.append(colour)
+        cv2.circle(img1,(i[0],i[1]),i[2],colour,2) # draw the circle
         cv2.circle(img1,(i[0],i[1]),2,(0,0,255),3) # draw the center of the circle
+        index += 1
     cv2.imwrite('circles1.png', img1) # save image
+
+
     ###################################
     '''
     Task 4: Epipolar line
@@ -316,7 +330,6 @@ if __name__ == '__main__':
     Plot onto the second image
     '''
 
-
     R0 = H0_wc[:3, :3]
     R1 = H1_wc[:3, :3]
 
@@ -334,18 +347,17 @@ if __name__ == '__main__':
 
     M = K.intrinsic_matrix
     MInv = np.linalg.inv(M)
-    F = MInv.T @ E @ MInv
-    print("F: ", F)
 
-    centres = []
+    F = MInv.T @ E @ MInv
+
+
     lines = []
+    points = []
     for centre in circles0[0,:]:
         C = np.array([centre[0], centre[1], 1])
         line = F @ C
         lines.append(line)
-        print(line)
-        print("Centre: ", C)
-
+        # print(line)
 
         #Ax + by +c = 0
         a, b, c = line
@@ -353,38 +365,14 @@ if __name__ == '__main__':
         y0 = int(-c / b)
         x1 = img_width
         y1 =  int(-(c + a*x1) / b)
-        print(x0, y0, x1, y1)
+        points.append([(x0, y0), (x1, y1)])
+        # print(x0, y0, x1, y1)
         cv2.line(img1, (x0, y0), (x1, y1), (0, 255, 0), 2)
-
         
-        # CTemp = np.array([centre[0], centre[1]], dtype=np.float64)
-        # centres.append(CTemp)
+    # print("----------------")
+    # print(lines)
+    # print(points)
 
-
-
-        
-
-    print("----------------")
-    # centres = np.array(centres, dtype=np.float32).reshape(-1, 1, 2)
-    # lines = cv2.computeCorrespondEpilines(centres, 1, F)
-    # lines = lines.reshape(-1, 3)  # Each line is in the form ax + by + c = 0
-    print(lines)
-
-
-
-    # for line in lines:
-    #     a, b, c = line
-    #     x0, y0 = 0, int(-c / b)  # Intersection with the left edge
-    #     x1, y1 = img1.shape[1], int(-(c + a * img1.shape[1]) / b)  # Right edge
-    #     print(x0, y0, x1, y1)
-    #     color = tuple(np.random.randint(0, 255, 3).tolist())  # Random color for each line
-
-    #     # Draw the line
-    #     cv2.line(img1, (x0, y0), (x1, y1), color, 1)
-
-        # Draw the corresponding point
-        # pt = (int(pt[0][0]), int(pt[0][1]))
-        # cv2.circle(img1, pt, 5, color, -1)
 
     # Show the image with epipolar lines
     plt.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
@@ -400,6 +388,43 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+    def distanceToLine(line, centre):
+        a,b,c = line
+        x, y = centre
+        return abs(a*x + b*y + c) / np.sqrt(a**2 + b**2)
+    
+    
+
+    print("Colours: ", colours)
+    closest = []
+    for i in range (len(lines)):
+        print("Points: ", points[i])
+        line = lines[i]
+        minDistance = float('inf')
+        currClosest = None
+        index = 0
+        for centre in circles1[0,:]:
+            distance = distanceToLine(line, [centre[0], centre[1]])
+            # print("Distance: ",distance)
+            if distance < minDistance:
+
+                minDistance = distance
+                currClosest = [centre, colours[index]]
+
+            index += 1
+            
+        closest.append(currClosest)
+        print(currClosest[1])
+        cv2.line(img1, points[i][0], points[i][1], currClosest[1], 2)
+
+
+    # print(closest)
+
+
+        # Show the image with epipolar lines
+    plt.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
+    plt.title("Epipolar Lines with colour")
+    plt.show()
 
 
     ###################################
