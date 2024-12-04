@@ -34,7 +34,6 @@ def templateMatching(image, template):
                 y, x = area
                 # boxes.append((x, y, x + int(templateW * scale), y + int(templateH * scale), result[y, x]))
                 boxes.append((x, y, x + templateW, y + templateH, result[y, x]))
-
     return boxes
 
 
@@ -79,20 +78,4 @@ def main(image):
     boxes = templateMatching(image, template_image) #gets all the boxes that matches
     filtered_boxes = nonMaxSuppression(boxes) #filters out boxes using
     boxes = [[box[0], box[1], box[2], box[3], box[4]] for box in filtered_boxes]
-    print("Done Matching")
     return boxes
-
-
-    # Draw the bounding boxes on the image
-    for box in filtered_boxes:
-        x1, y1, x2, y2, __name__ = box
-        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-    # Save or display the resulting image
-    # cv2.imwrite("result.jpg", image)
-    cv2.imshow("Detected Signs", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-# img = cv2.imread("No_entry/NoEntry5.bmp")
-# main(img)

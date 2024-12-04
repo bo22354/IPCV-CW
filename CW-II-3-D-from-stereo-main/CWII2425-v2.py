@@ -119,7 +119,9 @@ if __name__ == '__main__':
 
         # create sphere with random radius
         size = random.randrange(args.sph_rad_min, args.sph_rad_max, 2)/10
+        print(size)
         sph_mesh=o3d.geometry.TriangleMesh.create_sphere(radius=size)
+        print(sph_mesh)
         mesh_list.append(sph_mesh)
         RGB_list.append([0., 0.5, 0.5])
 
@@ -353,7 +355,9 @@ if __name__ == '__main__':
 
     lines = []
     points = []
+    centres0 = []
     for centre in circles0[0,:]:
+        centres0.append(centre)
         C = np.array([centre[0], centre[1], 1])
         line = F @ C
         lines.append(line)
@@ -397,15 +401,14 @@ if __name__ == '__main__':
 
     print("Colours: ", colours)
     closest = []
+    correspondingCentres = [] #[centre0, centre1]
     for i in range (len(lines)):
-        print("Points: ", points[i])
         line = lines[i]
         minDistance = float('inf')
         currClosest = None
         index = 0
         for centre in circles1[0,:]:
             distance = distanceToLine(line, [centre[0], centre[1]])
-            # print("Distance: ",distance)
             if distance < minDistance:
 
                 minDistance = distance
@@ -413,12 +416,17 @@ if __name__ == '__main__':
 
             index += 1
             
-        closest.append(currClosest)
-        print(currClosest[1])
+        # closest.append(currClosest)
+        # print("Centre in cam0", centres0[i])
+        # print("Centre in cam1", closest[i])
+        # print("-------------------------------------------------------")
+
+        correspondingCentres.append([[centres0[i][0], centres0[i][1], 1], [currClosest[0][0], currClosest[0][1], 1]])
+        print(correspondingCentres[i])
+        print("-------------------------------------------------------")
+
         cv2.line(img1, points[i][0], points[i][1], currClosest[1], 2)
 
-
-    # print(closest)
 
 
         # Show the image with epipolar lines
@@ -432,8 +440,160 @@ if __name__ == '__main__':
     Task 6: 3-D locations of sphere centres
 
     Write your code here
+
+
+    Pcam0 = R.T @ Pcam1 + T
+    Pcam1 = R(Pcam0 - T)
+
+    Going to work in cam0
+
+    (a * Pcam0) - (b * (R.T @ Pcam1) - t) - c((Pcam0)  CrossProduct with -> (R.T @ Pcam1)) = 0
+    R = rotation from cam0 to cam1
+    t = translation from cam0 to cam1
+    .T = transpose
+    a, b, c are all scalars
+
+    We can then find a,b,c by rearranging the equation to give us:
+    [a, b, c].T = HInv @ T
+    Where HInv is the inverse of H
+    H is some matrix from all the parts in the first equation
+
+
+
+
     '''
     ###################################
+    centres1 = []
+    for centre in circles1[0,:]:
+        centres1.append(centre)
+
+    print("-------------------------------------------------------")
+    print("Rotation: ", R)
+    print("Translation: ", T)
+    print("-------------------------------------------------------")
+    newCentres = []
+    for centres in correspondingCentres:
+        centre0 = np.array(centres[0])
+        centre1 = np.array(centres[1])
+        print("centre0", centre0)
+        print("centre1", centre1)
+
+        centre1ToCam0 = np.array((R.T @ centre1) - T )
+
+        term1 = centre0
+        term2 = -centre1ToCam0
+        term3 = -np.cross(centre0, (R.T @ centre1))
+
+        H = np.column_stack((term1, term2, term3))
+        InvH = np.linalg.inv(H)
+        a, b, c = InvH @ T
+        point = ((a * centre0) + (b * (R.T @ centre1)) + T) / 2
+
+
+        worldPoint = R0.T @ point + T0
+        newCentres.append(worldPoint)
+        print("H", H)
+        print("point" , point)
+        print("point in world Coords: ", worldPoint)
+        print("-------------------------------------------------------")
+
+#######################################################################
+#OpenCV
+        RT0 = np.hstack((R0, T0.reshape(-1, 1)))
+        RT1 = np.hstack((R1, T1.reshape(-1, 1)))
+        P0 = np.array(M @ RT0, dtype=np.float32)
+        P1 = np.array(M @ RT1, dtype=np.float32)
+
+        point_3D_homogeneous = cv2.triangulatePoints(P0, P1, np.array(centre0[:2], dtype=np.float32), np.array(centre1[:2], dtype=np.float32))
+        point_3D = point_3D_homogeneous[:3] / point_3D_homogeneous[3]
+        print("3D Point in camera coordinates:", point_3D)
+        print("fnklds ", point_3D_homogeneous)
+#########################################################################
+#Charlie's Method
+
+        camL = -R1.T @ T1
+        camR = -R0.T @ T0
+        camLW = R1.T @ centre1 + T1
+        camRW = R0.T @ centre0 + T0
+        H = [camLW, -camRW, -(np.cross(camLW, camRW))]
+        HInv = np.linalg.inv(H)
+        TW = camR - camL
+        a,b,c = HInv @ TW
+        P = ((camL + a*camLW) + (camR + b*camRW)) /2
+        print("Charlies Point: ", P)
+#########################################################################
+
+
+
+
+
+    print(prev_loc)
+    newMesh_list = []
+    newRGB_list = []
+    newH_list = []
+    for centres in newCentres:
+        print(centres[0])
+        sphere = o3d.geometry.TriangleMesh.create_sphere(radius=10)
+        newMesh_list.append(sphere)
+        newRGB_list.append([0.0, 0.0, 1.0])  # Use red for calculated spheres
+
+        # Create transformation matrix for the sphere's position
+        sph_H = np.array(
+            [[1, 0, 0, centres[0]],  # X position
+            [0, 1, 0, centres[1]],  # Y position
+            [0, 0, 1, centres[2]],  # Z position
+            [0, 0, 0, 1]]
+        )
+        newH_list.append(sph_H)
+
+
+    for (mesh, H, rgb) in zip(newMesh_list, newH_list, newRGB_list):
+        # Apply location transformation
+        mesh.vertices = o3d.utility.Vector3dVector(
+            transform_points(np.asarray(mesh.vertices), H)
+        )
+        # Paint meshes with uniform colors
+        mesh.paint_uniform_color(rgb)
+        mesh.compute_vertex_normals()
+        obj_meshes.append(mesh) 
+
+
+
+
+
+
+
+    pcd_GTcents = o3d.geometry.PointCloud()
+    pcd_GTcents.points = o3d.utility.Vector3dVector(np.array(GT_cents)[:, :3])
+    pcd_GTcents.paint_uniform_color([1., 0., 0.])
+    if args.bCentre:
+        vis = o3d.visualization.Visualizer()
+        vis.create_window(width=640, height=480, left=0, top=0)
+        for m in [obj_meshes[0], pcd_GTcents]:
+            vis.add_geometry(m)
+        vis.run()
+        vis.destroy_window()
+
+    
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     ###################################

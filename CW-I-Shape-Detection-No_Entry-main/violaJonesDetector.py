@@ -8,23 +8,24 @@ def detectAndDisplay(frame, model):
     foundBoxes = []
 
     signs = model.detectMultiScale(frame_gray, scaleFactor=1.01, minNeighbors=1, flags=0, minSize=(10,10), maxSize=(300,300)) #For circles
-    # faces = model.detectMultiScale(frame_gray, scaleFactor=1.1, minNeighbors=1, flags=0, minSize=(10,10), maxSize=(300,300)) #Viola Jones by itself
+    # signs = model.detectMultiScale(frame_gray, scaleFactor=1.1, minNeighbors=1, flags=0, minSize=(10,10), maxSize=(300,300)) #Viola Jones by itself
 
     for i in range(0, len(signs)): # For each detection get the start and end coordinates
         start_point = (signs[i][0], signs[i][1])
         end_point = (signs[i][0] + signs[i][2], signs[i][1] + signs[i][3])
         foundBoxes.append([start_point, end_point])
 
-    frame_cpy = np.copy(frame)
-    colour = (0, 255, 0)
-    display(foundBoxes, frame_cpy, colour)
-
-    cv2.imwrite( "ViolaJones.jpg", frame_cpy ) #Save Result Image
+###############################################################################
+#Image of Viola Jones Boxes
+    # frame_cpy = np.copy(frame)
+    # colour = (0, 255, 0)
+    # display(foundBoxes, frame_cpy, colour)
+    # cv2.imwrite( "ViolaJones.jpg", frame_cpy ) #Save Result Image
+###############################################################################
     return foundBoxes
 
 
-def display(foundBoxes, frame, colour):
-    thickness = 2
+def display(foundBoxes, frame, colour, thickness = 2):
     for box in foundBoxes:
         xStart, yStart = box[0]
         xEnd, yEnd = box[1]
@@ -49,9 +50,6 @@ def readGroundtruth(imageName, frame):
             if(img_name == imageName):
                 start_point = (x, y)
                 end_point = (x+width, y+height)
-                # colour = (0,0,255)
-                # thickness = 2
-                # frame = cv2.rectangle(frame, start_point, end_point, colour, thickness)
                 realBoxes.append([start_point, end_point])
     return realBoxes
 
@@ -75,7 +73,7 @@ def iou(foundBoxes, realBoxes):
             union = foundArea + realArea - intersect
 
             iou = intersect / union
-            print(iou)
             if(iou > 0.5):
                 return 1 #sufficient overlap  
     return 0 #No overlap
+

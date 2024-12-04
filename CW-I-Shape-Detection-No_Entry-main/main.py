@@ -41,13 +41,14 @@ def analysis():
     else:
         truePosRate = 0 #Nothing to detect
 
-    print("True Positive: ",truePos)
-    print("False Positives: ", falsePos)
-    print("False Negatives: ", falseNeg)
-    print("Precision: ", precision)
-    print("Recall: ", recall)
-    print("F1: ", f1Score)
-    print("TPR:  ", truePosRate)
+    #Analysis Outputs
+    # print("True Positive: ",truePos)
+    # print("False Positives: ", falsePos)
+    # print("False Negatives: ", falseNeg)
+    # print("Precision: ", precision)
+    # print("Recall: ", recall)
+    # print("F1: ", f1Score)
+    # print("TPR:  ", truePosRate)
 
 
     
@@ -80,55 +81,58 @@ if not model.load(cascade_name):
     exit(0)
 
 
-
+templateBoxes = []
 templateBoxes = templateDetector.main(frame)
-print("Found Via Template Matching")
+# print("Found Via Template Matching")
 
 violaBoxes = violaJonesDetector.detectAndDisplay( frame , model ) #Detect NoEntry signs and display
-print("Found Via ViolaJones")
+# print("Found Via ViolaJones")
 
-violaBoxes = [[box[0][0], box[0][0], box[1][0], box[1][0], 0.6] for box in violaBoxes]
+
+violaBoxes = [[box[0][0], box[0][1], box[1][0], box[1][1], 0.6] for box in violaBoxes]
 foundBoxes = violaBoxes + templateBoxes
 foundBoxes = templateDetector.nonMaxSuppression(foundBoxes)
+
 foundBoxes = [[[box[0], box[1]], [box[2], box[3]]] for box in foundBoxes]
-allBoxes = np.copy(frame)
-violaJonesDetector.display(foundBoxes, allBoxes, (0, 255, 0))
-cv2.imwrite( "allBoxes.jpg", allBoxes)#Save Result Image
+# print("Done NMS of boxes")
 
-print("Done NMS of boxes")
-
-realBoxes = violaJonesDetector.readGroundtruth( fileName[0], frame ) #Displasy the groundtruth values on image
+###############################################################################
+#Image of all Boxes Created
+# allBoxes = np.copy(frame)
+# violaJonesDetector.display(foundBoxes, allBoxes, (0, 255, 0))
+# cv2.imwrite( "allBoxes.jpg", allBoxes)#Save Result Image
+###############################################################################
 
 
 
 if args.type == 'all':
     circleBoxes = shapeDetector.main(frame)
-    print("Found Circles")
+    # print("Found Circles")
     newFoundBoxes = []
     for foundBox in foundBoxes:
         if violaJonesDetector.iou(foundBox, circleBoxes) == 1:
             newFoundBoxes.append(foundBox)
     foundBoxes = newFoundBoxes
-    print("Finished Detecting")
+    # print("Finished Detecting")
 
 
 #Check all boxes for colour matching
 foundBoxes = colourDetector.detectColours(frame, foundBoxes)
 
-violaJonesDetector.display(foundBoxes, frame, (0, 255, 0))
+
+realBoxes = violaJonesDetector.readGroundtruth( fileName[0], frame ) #Displasy the groundtruth values on image
+violaJonesDetector.display(foundBoxes, frame, (0, 255, 0), 4)
 violaJonesDetector.display(realBoxes, frame, (0, 0, 255))
 
 
 truePos = 0
-print(foundBoxes)
 for foundBox in foundBoxes: #determine if each found box is a valid detection
-    print("NewBox")
     truePos = violaJonesDetector.iou(foundBox, realBoxes) + truePos
 
 
 results = analysis()
 
-print("True Positive Rate: ", results[5])
-print("F1-Score: ", results[4])
+# print("True Positive Rate: ", results[5])
+# print("F1-Score: ", results[4])
 
 cv2.imwrite( "detected.jpg", frame )#Save Result Image

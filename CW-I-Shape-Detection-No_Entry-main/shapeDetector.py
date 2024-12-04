@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 def applyFilters(frame, filters):
     size = []
@@ -61,16 +63,34 @@ def hough(thresImage, angle, t, rMax, rMin, image):
 
     img_cpy = np.copy(image)
     circlesBoxes = []
+    # houghSpace = np.zeros((rows, cols), dtype=np.int32) #needed for plotting hough space
 
-    # Post-processing: Find circles above threshold
+    #Find circles above threshold
     for a in range(rows):
         for b in range(cols):
+            count = 0
             for r in range(rMin, rMax):
                 rIndex = r - rMin
+                # count += accumulator[a, b, rIndex] #needed for plotting hough space
                 if accumulator[a, b, rIndex] >= t:
                     circlesBoxes.append([[b-r, a-r],[b+r, a+r]])  # Add the coordinates for the box bounding the circle
                     cv2.circle(img_cpy, (b, a), r, (255, 0, 0), 4)  # Draw circle on image
-    cv2.imwrite("circles.jpg", img_cpy)
+            # houghSpace[a, b] = count #needed for plotting hough space
+    
+
+#################################################################
+#Plotting Hough Space
+    # plt.imshow(houghSpace, cmap='hot', interpolation='nearest')
+    # plt.colorbar(label='Votes')
+    # plt.xlabel('Theta')
+    # plt.ylabel('Rho')
+    # plt.title('2D Hough Space (Radii summed)')
+    # plt.show()
+    # cv2.imwrite("houghSpace.jpg", houghSpace)
+#################################################################
+
+
+    # cv2.imwrite("circles.jpg", img_cpy)
     return circlesBoxes
 
 
@@ -95,8 +115,7 @@ def main(frame):
     # _, edges = cv2.threshold(magnitude, 50, 255, cv2.THRESH_BINARY)
 
     # cv2.imwrite("thresImage.jpg", edges)
-#########################################################################
-
+    #########################################################################
 
 
     gaussianX = cv2.getGaussianKernel(5,1)
@@ -116,9 +135,6 @@ def main(frame):
     angle = cv2.phase(gradX, gradY, angleInDegrees=False)
     magnitude = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U) #normalize(src, destination, min, max, normalization type, data type)
     thresImage = threshold(magnitude)
-
-    # print("Got Threshold Image")
-    # cv2.imwrite("thresImage.jpg", thresImage)
 
     t = 13
     rMin = 10
