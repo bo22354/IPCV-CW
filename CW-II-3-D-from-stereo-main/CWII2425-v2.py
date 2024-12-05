@@ -113,15 +113,14 @@ if __name__ == '__main__':
     # create spheres
     prev_loc = []
     GT_cents, GT_rads = [], []
+    groundTruth = []
     for i in range(args.num):
         # add sphere name
         name_list.append(f'sphere_{i}')
 
         # create sphere with random radius
         size = random.randrange(args.sph_rad_min, args.sph_rad_max, 2)/10
-        print(size)
         sph_mesh=o3d.geometry.TriangleMesh.create_sphere(radius=size)
-        print(sph_mesh)
         mesh_list.append(sph_mesh)
         RGB_list.append([0., 0.5, 0.5])
 
@@ -143,6 +142,7 @@ if __name__ == '__main__':
                      [0, 0, 0, 1]]
                 )
         H_list.append(sph_H)
+        groundTruth.append([x, size, z])
 
     # arrange plane and sphere in the space
     obj_meshes = []
@@ -361,7 +361,6 @@ if __name__ == '__main__':
         C = np.array([centre[0], centre[1], 1])
         line = F @ C
         lines.append(line)
-        # print(line)
 
         #Ax + by +c = 0
         a, b, c = line
@@ -370,12 +369,8 @@ if __name__ == '__main__':
         x1 = img_width
         y1 =  int(-(c + a*x1) / b)
         points.append([(x0, y0), (x1, y1)])
-        # print(x0, y0, x1, y1)
         cv2.line(img1, (x0, y0), (x1, y1), (0, 255, 0), 2)
-        
-    # print("----------------")
-    # print(lines)
-    # print(points)
+
 
 
     # Show the image with epipolar lines
@@ -397,9 +392,6 @@ if __name__ == '__main__':
         x, y = centre
         return abs(a*x + b*y + c) / np.sqrt(a**2 + b**2)
     
-    
-
-    print("Colours: ", colours)
     closest = []
     correspondingCentres = [] #[centre0, centre1]
     for i in range (len(lines)):
@@ -416,15 +408,8 @@ if __name__ == '__main__':
 
             index += 1
             
-        # closest.append(currClosest)
-        # print("Centre in cam0", centres0[i])
-        # print("Centre in cam1", closest[i])
-        # print("-------------------------------------------------------")
 
-        correspondingCentres.append([[centres0[i][0], centres0[i][1], 1], [currClosest[0][0], currClosest[0][1], 1]])
-        print(correspondingCentres[i])
-        print("-------------------------------------------------------")
-
+        correspondingCentres.append([[centres0[i][0], centres0[i][1], 1], [currClosest[0][0], currClosest[0][1], 1], centres0[i][2]])
         cv2.line(img1, points[i][0], points[i][1], currClosest[1], 2)
 
 
@@ -457,27 +442,19 @@ if __name__ == '__main__':
     [a, b, c].T = HInv @ T
     Where HInv is the inverse of H
     H is some matrix from all the parts in the first equation
-
-
-
-
     '''
     ###################################
     centres1 = []
     for centre in circles1[0,:]:
         centres1.append(centre)
 
-    print("-------------------------------------------------------")
-    print("Rotation: ", R)
-    print("Translation: ", T)
-    print("-------------------------------------------------------")
-    newCentres = []
+    myCentres = []
+    openCVCentre = []
+    worldCentres = []
     for centres in correspondingCentres:
+        print("--------------------------------------------------")
         centre0 = np.array(centres[0])
         centre1 = np.array(centres[1])
-        print("centre0", centre0)
-        print("centre1", centre1)
-
         centre1ToCam0 = np.array((R.T @ centre1) - T )
 
         term1 = centre0
@@ -491,110 +468,33 @@ if __name__ == '__main__':
 
 
         worldPoint = R0.T @ point + T0
-        newCentres.append(worldPoint)
-        print("H", H)
-        print("point" , point)
-        print("point in world Coords: ", worldPoint)
-        print("-------------------------------------------------------")
-
-#######################################################################
-#OpenCV
-        RT0 = np.hstack((R0, T0.reshape(-1, 1)))
-        RT1 = np.hstack((R1, T1.reshape(-1, 1)))
-        P0 = np.array(M @ RT0, dtype=np.float32)
-        P1 = np.array(M @ RT1, dtype=np.float32)
-
-        point_3D_homogeneous = cv2.triangulatePoints(P0, P1, np.array(centre0[:2], dtype=np.float32), np.array(centre1[:2], dtype=np.float32))
-        point_3D = point_3D_homogeneous[:3] / point_3D_homogeneous[3]
-        print("3D Point in camera coordinates:", point_3D)
-        print("fnklds ", point_3D_homogeneous)
+        myCentres.append(worldPoint)
+        print("My Centre: ", worldPoint)
+        
 #########################################################################
-#Charlie's Method
+#Working Method
+        camLCentre = -R1.T @ T1
+        camRCentre = -R0.T @ T0
 
-        camL = -R1.T @ T1
-        camR = -R0.T @ T0
-        camLW = R1.T @ centre1 + T1
-        camRW = R0.T @ centre0 + T0
-        H = [camLW, -camRW, -(np.cross(camLW, camRW))]
+        PL = MInv @ np.array([centres[1][0],centres[1][1],1])
+        PR = MInv @ np.array([centres[0][0],centres[0][1],1])
+
+        PLWorld = R1.T @ PL
+        PRWorld = R0.T @ PR
+
+        H = np.column_stack([PLWorld, -PRWorld, -np.cross(PLWorld, PRWorld)])
+
+        TWorld = camRCentre - camLCentre
+    
         HInv = np.linalg.inv(H)
-        TW = camR - camL
-        a,b,c = HInv @ TW
-        P = ((camL + a*camLW) + (camR + b*camRW)) /2
+
+        a,b,c = HInv @ TWorld.reshape(-1, 1)
+        P = ((camLCentre + a * PLWorld) + (camRCentre + b * PRWorld)) / 2
+
         print("Charlies Point: ", P)
+        worldCentres.append([P[0], P[1], P[2]])
+
 #########################################################################
-
-
-
-
-
-    print(prev_loc)
-    newMesh_list = []
-    newRGB_list = []
-    newH_list = []
-    for centres in newCentres:
-        print(centres[0])
-        sphere = o3d.geometry.TriangleMesh.create_sphere(radius=10)
-        newMesh_list.append(sphere)
-        newRGB_list.append([0.0, 0.0, 1.0])  # Use red for calculated spheres
-
-        # Create transformation matrix for the sphere's position
-        sph_H = np.array(
-            [[1, 0, 0, centres[0]],  # X position
-            [0, 1, 0, centres[1]],  # Y position
-            [0, 0, 1, centres[2]],  # Z position
-            [0, 0, 0, 1]]
-        )
-        newH_list.append(sph_H)
-
-
-    for (mesh, H, rgb) in zip(newMesh_list, newH_list, newRGB_list):
-        # Apply location transformation
-        mesh.vertices = o3d.utility.Vector3dVector(
-            transform_points(np.asarray(mesh.vertices), H)
-        )
-        # Paint meshes with uniform colors
-        mesh.paint_uniform_color(rgb)
-        mesh.compute_vertex_normals()
-        obj_meshes.append(mesh) 
-
-
-
-
-
-
-
-    pcd_GTcents = o3d.geometry.PointCloud()
-    pcd_GTcents.points = o3d.utility.Vector3dVector(np.array(GT_cents)[:, :3])
-    pcd_GTcents.paint_uniform_color([1., 0., 0.])
-    if args.bCentre:
-        vis = o3d.visualization.Visualizer()
-        vis.create_window(width=640, height=480, left=0, top=0)
-        for m in [obj_meshes[0], pcd_GTcents]:
-            vis.add_geometry(m)
-        vis.run()
-        vis.destroy_window()
-
-    
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     ###################################
     '''
@@ -604,6 +504,99 @@ if __name__ == '__main__':
     '''
     ###################################
 
+    #########################################################################################################
+    #Functions
+    def creatingCentres(worldCentres):
+        Mesh_list = []
+        RGB_list = []
+        H_list = []
+        for centres in worldCentres:
+            sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.2)
+            Mesh_list.append(sphere)
+            RGB_list.append([0.0, 0.0, 1.0])  # Use red for calculated spheres
+
+            # Create transformation matrix for the sphere's position
+            sph_H = np.array(
+                [[1, 0, 0, centres[0]],  # X position
+                [0, 1, 0, centres[1]],  # Y position
+                [0, 0, 1, centres[2]],  # Z position
+                [0, 0, 0, 1]]
+            )
+            H_list.append(sph_H)
+
+        Obj_meshes = []
+        for (mesh, H, rgb) in zip(Mesh_list, H_list, RGB_list):
+            # Apply location transformation
+            mesh.vertices = o3d.utility.Vector3dVector(
+                transform_points(np.asarray(mesh.vertices), H)
+            )
+            # Paint meshes with uniform colors
+            mesh.paint_uniform_color(rgb)
+            mesh.compute_vertex_normals()
+            Obj_meshes.append(mesh) 
+        return Obj_meshes
+    
+
+    ###################################
+    def display(Obj_meshes, args, obj_meshes):
+        pcd_GTcents = o3d.geometry.PointCloud()
+        pcd_GTcents.points = o3d.utility.Vector3dVector(np.array(GT_cents)[:, :3])
+        pcd_GTcents.paint_uniform_color([1., 0., 0.])
+        if args.bCentre:
+            vis = o3d.visualization.Visualizer()
+            vis.create_window(width=640, height=480, left=0, top=0)
+            for i in range(len(Obj_meshes)):
+                for m in [Obj_meshes[i], pcd_GTcents]:
+                    vis.add_geometry(m)
+                for m in [obj_meshes[0], pcd_GTcents]:
+                    vis.add_geometry(m)
+            vis.run()
+            vis.destroy_window()
+
+
+    ###################################
+    def errors(worldCentres):
+        errors = []
+        for centre in worldCentres:
+            minErr = float('inf')
+            for real in groundTruth:
+                error = np.sqrt((real[0] - centre[0])**2 + (real[1] - centre[1])**2 + (real[2] - centre[2])**2)
+                if error < minErr:
+                    minErr = error
+
+            errors.append(minErr)
+        errorResults(errors)
+
+
+    ###################################
+    def errorResults(errors):
+        meanError = 0
+        RMSE = 0
+        for error in errors:
+            meanError += error
+            RMSE += error**2
+        meanError = meanError / len(errors)
+        RMSE = np.sqrt(RMSE / len(errors))
+        maxError = max(errors)
+
+        print("Errors: ", errors)
+        print("Mean Error: ", meanError)
+        print("Root Mean Squared Error: ", RMSE)
+        print("Max Error: ", maxError)
+
+
+    #########################################################################################################
+    #Task 7
+
+    print("World Centres")
+    Obj_meshes = creatingCentres(worldCentres)
+    display(Obj_meshes, args, obj_meshes)
+    errors(worldCentres)
+
+    # print("Intitial Attempt")
+    # Obj_meshes = creatingCentres(myCentres)
+    # display(Obj_meshes, args, obj_meshes)
+
 
     ###################################
     '''
@@ -612,6 +605,13 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+    radii = []
+    for i in range(len(correspondingCentres)):
+        centre0 = correspondingCentres[i][0]
+        worldCentre = worldCentres[i]
+        distance = np.sqrt((worldCentre[0] - T0[0])**2 + (worldCentre[1] - T0[1])**2 + (worldCentre[2] - T0[2])**2)
+        radius = (correspondingCentres[i][2] * distance) / f
+        radii.append(radius)
 
 
     ###################################
@@ -621,6 +621,67 @@ if __name__ == '__main__':
     Write your code here:
     '''
     ###################################
+
+    #########################################################################################################
+    #Functions
+    def creatingSphereFrames(worldCentres, radii, colour):
+        Mesh_list = []
+        RGB_list = []
+        H_list = []
+        for i in range(len(worldCentres)):
+            centres = worldCentres[i]
+            r = radii[i]
+            sphere = o3d.geometry.TriangleMesh.create_sphere(radius=r)
+            
+            vertices = np.asarray(sphere.vertices)
+            triangles = np.asarray(sphere.triangles)
+            
+            
+            edges = []
+            for triangle in triangles: # Create a list of edges (lines) from the triangles
+                edges.append([triangle[0], triangle[1]])
+                edges.append([triangle[1], triangle[2]])
+                edges.append([triangle[2], triangle[0]])
+
+            # Convert the edges into a LineSet
+            line_set = o3d.geometry.LineSet()
+            line_set.points = o3d.utility.Vector3dVector(vertices)
+            line_set.lines = o3d.utility.Vector2iVector(edges)
+            
+            frameSphere = line_set.translate(centres)
+
+            Mesh_list.append(frameSphere)
+            RGB_list.append(colour) 
+            H_list.append(np.eye(4))
+
+        Obj_meshes = []
+        for (mesh, H, rgb) in zip(Mesh_list, H_list, RGB_list):
+            points = np.asarray(mesh.points)
+            transformed_points = transform_points(points, H)
+            mesh.points = o3d.utility.Vector3dVector(transformed_points)
+            mesh.paint_uniform_color(rgb)
+            Obj_meshes.append(mesh)
+        return Obj_meshes
+    
+
+#########################################################################################################
+    #Task 9
+
+    realRadii = []
+    for centre in groundTruth:
+        realRadii.append(centre[1])
+
+    Obj_meshes = creatingSphereFrames(worldCentres, radii, [0.0, 0.0, 1.0])
+    Obj_meshes += (creatingSphereFrames(groundTruth, realRadii, [1.0, 0.0, 0.0]))
+    display(Obj_meshes, args, obj_meshes)
+
+    errors = []
+    meanError = 0
+    RMSE = 0
+    for i in range(len(radii)):
+        errors.append(radii[i]-realRadii[i])
+
+    errorResults(errors)
 
     ###################################
     '''
