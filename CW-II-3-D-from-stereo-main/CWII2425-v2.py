@@ -265,6 +265,9 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+
+    #########################################################################################################
+    #Functions
     def getColour(index):
     # Calculate RGB values by cycling through the channels
         r = int((index * 30) % 256)  # Red channel (cycling every 256 colors)
@@ -273,6 +276,9 @@ if __name__ == '__main__':
         return (b, g, r)  # OpenCV uses BGR, not RGB, so we return (B, G, R)
     
 
+    #########################################################################################################
+    #Task 3
+
     img0 = cv2.imread('view0.png', 1)
     img1 = cv2.imread('view1.png', 1)
     img_gray0 = cv2.cvtColor(img0,cv2.COLOR_BGR2GRAY)
@@ -280,23 +286,16 @@ if __name__ == '__main__':
     blur0 = cv2.medianBlur(img_gray0, 5)
     blur1 = cv2.medianBlur(img_gray1, 5)
 
-
-
     circles0 = cv2.HoughCircles(blur0,cv2.HOUGH_GRADIENT,1.5,15, param1=100, param2=35, minRadius=10, maxRadius=45)
-    # circles0 = cv2.HoughCircles(blur0,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=35, minRadius=0, maxRadius=0)
     circles0 = np.uint16(np.around(circles0))
-
     for i in circles0[0,:]:
         cv2.circle(img0,(i[0],i[1]),i[2],(0,255,0),2) # draw the circle
         cv2.circle(img0,(i[0],i[1]),2,(0,0,255),3) # draw the center of the circle
     cv2.imwrite('circles0.png', img0) # save image
 
 
-
     circles1 = cv2.HoughCircles(blur1,cv2.HOUGH_GRADIENT,1.5,15, param1=100, param2=35, minRadius=10, maxRadius=45)
-    # circles1 = cv2.HoughCircles(blur1,cv2.HOUGH_GRADIENT,1,20, param1=55, param2=45, minRadius=0, maxRadius=0)
     circles1 = np.uint16(np.around(circles1))
-
     index = 1
     colours = []
     for i in circles1[0,:]:
@@ -316,9 +315,8 @@ if __name__ == '__main__':
     https://docs.opencv.org/4.x/d6/d6e/group__imgproc__draw.html#ga7078a9fae8c7e7d13d24dac2520ae4a2
     
     Write your code here
-    '''
-    ###################################
-    '''
+
+    Notes:
     Get Rotation and Translation for both cameras seperated (from the 4x4 matrix into 3x3 and 1x3)
     Calculate the rotation and translation from cam0 to cam1
     Once you have T construct the matrix S (Skew)
@@ -331,27 +329,20 @@ if __name__ == '__main__':
     Calculate the intersection of our image (Furthest left and right points)
     Plot onto the second image
     '''
-
-    R0 = H0_wc[:3, :3]
-    R1 = H1_wc[:3, :3]
-
-    T0 = H0_wc[:3, 3]
-    T1 = H1_wc[:3, 3]
-
-    R = R1 @ R0.T
-    T = T1 - R@T0
-
-    S = np.array([[0, -T[2], T[1]],
+    ###################################
+    R0 = H0_wc[:3, :3] #rotation matrix from world to cam0
+    R1 = H1_wc[:3, :3] #rotation matrix from world to cam1
+    T0 = H0_wc[:3, 3] #translation matrix from world to cam0
+    T1 = H1_wc[:3, 3] #translation matrix from world to cam0
+    R = R1 @ R0.T #rotation matrix from cam0 to cam1
+    T = T1 - R@T0 #translation matrix from cam0 to cam1
+    S = np.array([[0, -T[2], T[1]], 
                   [T[2], 0, -T[0]],
                   [-T[1], T[0], 0]])
-    
-    E = S @ R
-
-    M = K.intrinsic_matrix
+    E = S @ R #essential matrix
+    M = K.intrinsic_matrix 
     MInv = np.linalg.inv(M)
-
-    F = MInv.T @ E @ MInv
-
+    F = MInv.T @ E @ MInv #Fundermental Matrix
 
     lines = []
     points = []
@@ -362,22 +353,19 @@ if __name__ == '__main__':
         line = F @ C
         lines.append(line)
 
-        #Ax + by +c = 0
         a, b, c = line
         x0 = 0
         y0 = int(-c / b)
         x1 = img_width
         y1 =  int(-(c + a*x1) / b)
+
         points.append([(x0, y0), (x1, y1)])
         cv2.line(img1, (x0, y0), (x1, y1), (0, 255, 0), 2)
-
-
 
     # Show the image with epipolar lines
     plt.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
     plt.title("Epipolar Lines")
     plt.show()
-
 
 
     ###################################
@@ -387,11 +375,18 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+
+    #########################################################################################################
+    #Functions
     def distanceToLine(line, centre):
         a,b,c = line
         x, y = centre
         return abs(a*x + b*y + c) / np.sqrt(a**2 + b**2)
     
+
+    #########################################################################################################
+    #Task 5
+
     closest = []
     correspondingCentres = [] #[centre0, centre1]
     for i in range (len(lines)):
@@ -401,20 +396,15 @@ if __name__ == '__main__':
         index = 0
         for centre in circles1[0,:]:
             distance = distanceToLine(line, [centre[0], centre[1]])
-            if distance < minDistance:
-
+            if distance < minDistance and distance < 15:
                 minDistance = distance
                 currClosest = [centre, colours[index]]
-
             index += 1
-            
+        if currClosest != None:
+            correspondingCentres.append([[centres0[i][0], centres0[i][1], 1], [currClosest[0][0], currClosest[0][1], 1], centres0[i][2]])
+            cv2.line(img1, points[i][0], points[i][1], currClosest[1], 2)
 
-        correspondingCentres.append([[centres0[i][0], centres0[i][1], 1], [currClosest[0][0], currClosest[0][1], 1], centres0[i][2]])
-        cv2.line(img1, points[i][0], points[i][1], currClosest[1], 2)
-
-
-
-        # Show the image with epipolar lines
+    # Show the image with epipolar lines
     plt.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
     plt.title("Epipolar Lines with colour")
     plt.show()
@@ -426,33 +416,26 @@ if __name__ == '__main__':
 
     Write your code here
 
-
+    Notes:
     Pcam0 = R.T @ Pcam1 + T
     Pcam1 = R(Pcam0 - T)
-
     Going to work in cam0
-
     (a * Pcam0) - (b * (R.T @ Pcam1) - t) - c((Pcam0)  CrossProduct with -> (R.T @ Pcam1)) = 0
     R = rotation from cam0 to cam1
     t = translation from cam0 to cam1
     .T = transpose
     a, b, c are all scalars
-
     We can then find a,b,c by rearranging the equation to give us:
     [a, b, c].T = HInv @ T
     Where HInv is the inverse of H
     H is some matrix from all the parts in the first equation
     '''
     ###################################
-    centres1 = []
-    for centre in circles1[0,:]:
-        centres1.append(centre)
-
     myCentres = []
-    openCVCentre = []
     worldCentres = []
     for centres in correspondingCentres:
-        print("--------------------------------------------------")
+        ###################################
+        #1st Attempt
         centre0 = np.array(centres[0])
         centre1 = np.array(centres[1])
         centre1ToCam0 = np.array((R.T @ centre1) - T )
@@ -466,13 +449,12 @@ if __name__ == '__main__':
         a, b, c = InvH @ T
         point = ((a * centre0) + (b * (R.T @ centre1)) + T) / 2
 
-
         worldPoint = R0.T @ point + T0
-        myCentres.append(worldPoint)
-        print("My Centre: ", worldPoint)
-        
-#########################################################################
-#Working Method
+        myCentres.append(worldPoint)        
+
+
+        ###################################
+        #Working Attempt
         camLCentre = -R1.T @ T1
         camRCentre = -R0.T @ T0
 
@@ -490,11 +472,8 @@ if __name__ == '__main__':
 
         a,b,c = HInv @ TWorld.reshape(-1, 1)
         P = ((camLCentre + a * PLWorld) + (camRCentre + b * PRWorld)) / 2
-
-        print("Charlies Point: ", P)
         worldCentres.append([P[0], P[1], P[2]])
 
-#########################################################################
 
     ###################################
     '''
@@ -583,19 +562,23 @@ if __name__ == '__main__':
         print("Mean Error: ", meanError)
         print("Root Mean Squared Error: ", RMSE)
         print("Max Error: ", maxError)
+        print("")
 
 
     #########################################################################################################
     #Task 7
-
-    print("World Centres")
+    
+    #Working Centres
     Obj_meshes = creatingCentres(worldCentres)
     display(Obj_meshes, args, obj_meshes)
+    print("Errors of Centre Estimates")
     errors(worldCentres)
 
-    # print("Intitial Attempt")
+    #Initial Attempt
     # Obj_meshes = creatingCentres(myCentres)
     # display(Obj_meshes, args, obj_meshes)
+    # errors(myCentres)
+
 
 
     ###################################
@@ -681,6 +664,7 @@ if __name__ == '__main__':
     for i in range(len(radii)):
         errors.append(radii[i]-realRadii[i])
 
+    print("Errors of Radii Estimates")
     errorResults(errors)
 
     ###################################
